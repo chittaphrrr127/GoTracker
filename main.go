@@ -2,45 +2,95 @@ package main
 
 import "fmt"
 
-func main() {
-	// var (
-	// 	orderID       int
-	// 	customerName  string
-	// 	isDelivered   bool
-	// 	isReadyToShip bool
-	// 	orderIDs      []int
-	// )
+type Order struct { //+
+	ID          int
+	Customer    string
+	Address     string
+	IsDelivered bool
+}
 
-	var orderID int = 1001
-	var customerName string = "Ivan"
-	var isDelivered bool = false
-	fmt.Println("Order ID:", orderID)
-	fmt.Println("Customer Name:", customerName)
-	fmt.Println("Is Delivered:", isDelivered)
+type InMemoryOrderRepo struct { //+
+	orders map[int]Order
+}
 
-	orderIDs := []int{}
-	// for i := 1; i <= 3; i++ {
-	// 	orderIDs = append(orderIDs, i+100)
-	// }
-	orderIDs = append(orderIDs, 101, 102, 103)
-	fmt.Println("orderIDs:", orderIDs)
-	fmt.Println("len(orderIDs)=", len(orderIDs), "cap(orderIDs)=", cap(orderIDs))
+type OrderRepository interface { //+
+	Add(order Order)
+	GetByID(id int) (Order, bool)
+	Update(order Order)
+	GetAll() (order []Order)
+}
 
-	orderCount := map[string]int{
-		"Alice": 5,
-		"Bob":   1,
+func (o *Order) MarkDelivered() { //+
+	o.IsDelivered = true
+}
+
+func (i *InMemoryOrderRepo) Add(order Order) { //+
+	i.orders[order.ID] = order
+}
+
+func (i *InMemoryOrderRepo) GetByID(id int) (Order, bool) { //+
+	order, ok := i.orders[id]
+	return order, ok
+}
+
+func (i *InMemoryOrderRepo) Update(order Order) { //+
+	i.orders[order.ID] = order
+}
+
+func (i *InMemoryOrderRepo) GetAll() []Order { //+
+	orders := []Order{}
+	for _, order := range i.orders {
+		orders = append(orders, order)
 	}
-	// orderCount["Alice"] = 5
-	// orderCount["Bob"] = 1
-	fmt.Println("orderCount:", orderCount)
+	return orders
+}
 
-	// fmt.Println("Is Alice ready to ship?")
-	// isReadyToShip = false
-	// if len(orderCount) > 2 {
-	// 	isReadyToShip = true
+func PrintAllOrders(repo OrderRepository) { //+
+	orders := repo.GetAll()
+	for _, order := range orders {
+		fmt.Printf("ID: %d, %s, Delivered: %v\n", order.ID, order.Customer, order.IsDelivered)
+	}
+}
+
+func NewInMemoryOrderRepo() *InMemoryOrderRepo { //?
+	return &InMemoryOrderRepo{
+		orders: make(map[int]Order),
+	}
+}
+
+func main() {
+	// repo := InMemoryOrderRepo{
+	// 	orders: make(map[int]Order),
 	// }
-	// fmt.Println(isReadyToShip)
 
-	isReadyToShip:= orderCount["Alice"]>2
-	fmt.Println("Is Alice ready to ship?", isReadyToShip)
+	repo:=NewInMemoryOrderRepo()
+
+	order1 := Order{
+		ID:          1,
+		Customer:    "Andrey",
+		Address:     "A1",
+		IsDelivered: false,
+	}
+
+	order2 := Order{
+		ID:          2,
+		Customer:    "Ivan",
+		Address:     "B1",
+		IsDelivered: false,
+	}
+
+	repo.Add(order1)
+	repo.Add(order2)
+
+	fmt.Println("[Before]")
+	PrintAllOrders(repo)
+
+	order, exists := repo.GetByID(1)
+	if exists {
+		order.MarkDelivered()
+		repo.Update(order)
+	}
+
+	fmt.Println("[After]")
+	PrintAllOrders(repo)
 }
