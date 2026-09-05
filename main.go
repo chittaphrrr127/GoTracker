@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type Order struct {
@@ -27,31 +28,40 @@ type OrderRepository interface {
 
 type InMemoryOrderRepo struct {
 	orders map[int]Order
+	mu     sync.Mutex
 }
 
-func (i *InMemoryOrderRepo) Add(order Order) {
-	i.orders[order.ID] = order
+func (r *InMemoryOrderRepo) Add(order Order) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.orders[order.ID] = order
 }
 
-func (i *InMemoryOrderRepo) GetByID(id int) (Order, error) {
-	order, ok := i.orders[id]
+func (r *InMemoryOrderRepo) GetByID(id int) (Order, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	order, ok := r.orders[id]
 	if !ok {
 		return Order{}, ErrOrderNotFound //valid zero-value Order. Not nil, because Order isn't a pointer/interface/map/etc.
 	}
 	return order, nil
 }
 
-func (i *InMemoryOrderRepo) Update(order Order) error { //
-	if _, ok := i.orders[order.ID]; !ok {
+func (r *InMemoryOrderRepo) Update(order Order) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.orders[order.ID]; !ok {
 		return ErrOrderNotFound
 	}
-	i.orders[order.ID] = order
+	r.orders[order.ID] = order
 	return nil
 }
 
-func (i *InMemoryOrderRepo) GetAll() []Order {
+func (r *InMemoryOrderRepo) GetAll() []Order {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	orders := []Order{}
-	for _, order := range i.orders {
+	for _, order := range r.orders {
 		orders = append(orders, order)
 	}
 	return orders
@@ -64,56 +74,43 @@ func PrintAllOrders(repo OrderRepository) {
 	}
 }
 
-func main() { //
+func DeliverMany(repo OrderRepository, ids []int) {
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		wg.Add(1)
+		go func(orderID int) {
+			defer wg.Done()
+			order, err := repo.GetByID(orderID)
+			if err != nil {
+				fmt.Printf("Ошибка: %v (ID: %d)\n", err, orderID)
+				return //!
+			}
+			order.MarkDelivered()
+			if err := repo.Update(order); err != nil { //===============erru
+				fmt.Printf("Ошибка при обновлении ID %d: %v\n", orderID, err)
+				return //!
+			}
+			fmt.Printf("Order %d delivered\n", orderID)
+		}(id)
+	}
+	wg.Wait()
+}
+
+func main() {
 	repo := InMemoryOrderRepo{
 		orders: make(map[int]Order),
 	}
 
-	order1 := Order{
-		ID:          1,
-		Customer:    "Andrey",
-		Address:     "a",
-		IsDelivered: false,
-	}
+	repo.Add(Order{ID: 1, Customer: "Andrey", Address: "kzn"})
+	repo.Add(Order{ID: 2, Customer: "ivan", Address: "msc"})
+	repo.Add(Order{ID: 3, Customer: "Katya", Address: "smr"})
 
-	order2 := Order{
-		ID:          2,
-		Customer:    "Ivan",
-		Address:     "i",
-		IsDelivered: false,
-	}
-
-	repo.Add(order1)
-	repo.Add(order2)
-
-	fmt.Println("[Before]")
+	fmt.Println("[До доставки]")
 	PrintAllOrders(&repo)
 
-	id := 1
+	fmt.Println("\n[Результаты доставки]")
+	DeliverMany(&repo, []int{1, 2, 999})
 
-	order, err := repo.GetByID(id)
-	if err != nil {
-		fmt.Println("Ошибка", err)
-	} else {
-		order.MarkDelivered()
-		if err := repo.Update(order); err != nil {
-			fmt.Println("Ошибка:", err)
-		} else {
-			fmt.Printf("\nUpdated order %d\n", order.ID)
-		}
-	}
-
-	fmt.Println("\n[After]")
+	fmt.Println("\n[После доставки]")
 	PrintAllOrders(&repo)
-
-	order3 := Order{
-		ID:          3,
-		Customer:    "Assel",
-		Address:     "q",
-		IsDelivered: false,
-	}
-	erru := repo.Update(order3)
-	if erru != nil {
-		fmt.Println("\nОшибка:", erru)
-	}
 }
