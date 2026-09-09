@@ -8,4 +8,3 @@ type Repository interface {
 	Update(order order.Order) error
 	GetAll() []order.Order
 }
-

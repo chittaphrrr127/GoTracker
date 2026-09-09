@@ -7,15 +7,12 @@ import (
 )
 
 func main() {
-	repo := repository.InMemoryOrderRepo{
-		orders: make(map[int]order.Order),
-	}
+	repo := repository.NewInMemoryOrderRepo()
+	svc := service.NewOrderService(repo)
 
-	svc := service.OrderService{repo: &repo}
+	repo.Add(order.Order{ID: 1, Customer: "jk", Address: "sl"})
+	repo.Add(order.Order{ID: 2, Customer: "jm", Address: "ps"})
 
-	repo.Add(order.Order{ID: 1, Customer: "Andrey", Address: "kzn"})
-	repo.Add(order.Order{ID: 2, Customer: "Ivan", Address: "msc"})
-
-	svc.DeliverMany(&repo, []int{1, 2})
+	svc.DeliverMany([]int{1, 2})
 	svc.PrintAllOrders()
 }
